@@ -1,0 +1,13 @@
+{
+  "name": "MTZ Técnico Franquicias",
+  "short_name": "MTZ Técnico",
+  "description": "Herramienta diaria del técnico de mantenimiento: jornada, avisos, informes y locales.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111214",
+  "theme_color": "#111214",
+  "icons": [
+    { "src": "app/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "app/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

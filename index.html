@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<title>MTZ Técnico Franquicias</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="app/img/logo.png">
+<link rel="apple-touch-icon" href="app/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+:root{
+  /* Tokens de marca compartidos con el Generador de Informes y el Localizador */
+  --c-marca:#D32F2F; --c-marca-oscuro:#B71C1C; --c-amarillo:#EAB308;
+  --c-amarillo-d:#CA8A04; --c-verde:#16A34A; --c-naranja:#F58220; --c-tinta:#1A1A1B;
+  /* Superficie oscura (uso en campo / nocturno) */
+  --bg:#111214; --panel:#1b1d21; --panel2:#23262b; --line:#33373e;
+  --tx:#ececee; --mut:#9aa0aa;
+  /* Aliases semánticos que consume el resto de la hoja */
+  --mostaza:var(--c-amarillo); --mostaza-d:var(--c-amarillo-d);
+  --ok:#22C55E; --rojo:#E85D5B; --radio:12px; --sombra:0 2px 8px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);
+  font-family:'Roboto',system-ui,sans-serif;font-size:16px}
+h1,h2,h3,.mt{font-family:'Montserrat',sans-serif}
+.app{max-width:460px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:16px 18px;
+  background:linear-gradient(180deg,#1b1d21,#111214);border-bottom:1px solid var(--line)}
+header .logo{width:38px;height:38px;border-radius:10px;background:var(--c-amarillo);
+  display:grid;place-items:center;color:var(--c-tinta);font-size:20px;box-shadow:0 0 0 4px #EAB30833}
+header b{font-family:'Montserrat';font-size:17px;letter-spacing:.3px}
+header small{color:var(--mut);display:block;font-size:11px}
+.body{flex:1;padding:18px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;
+  box-shadow:var(--sombra)}
+.mut{color:var(--mut)}
+.row{display:flex;align-items:center;gap:12px}
+.spread{justify-content:space-between}
+.chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--mut)}
+.chip.live{background:#22C55E22;border-color:#22C55E55;color:#4ADE80}
+.chip.off{background:#D32F2F18;border-color:#D32F2F44;color:#FCA5A5}
+.chip.fin{background:#5aa9e622;border-color:#5aa9e655;color:#9ccdf5}
+/* Botones principales */
+.big{width:100%;border:0;border-radius:var(--radius);padding:26px;font-family:'Montserrat';
+  font-weight:800;font-size:22px;letter-spacing:.4px;color:var(--c-tinta);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:12px;transition:.15s;
+  box-shadow:0 10px 30px -10px #000}
+.big.start{background:linear-gradient(180deg,#22C55E,var(--c-verde))}
+.big.stop{background:linear-gradient(135deg,var(--c-marca),var(--c-marca-oscuro));color:#fff}
+.big.viaje{background:linear-gradient(135deg,#E85D5D,var(--c-marca));color:#fff;font-size:18px;padding:18px}
+.big.llegar{background:linear-gradient(135deg,#FCD34D,var(--c-amarillo));color:var(--c-tinta);font-size:18px;padding:18px}
+.big.gho{background:var(--panel2);color:var(--tx);border:1px solid var(--line);font-size:15px;padding:14px}
+.big:active{transform:scale(.98)}
+.big:disabled{opacity:.35}
+.status{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;text-align:center}
+.status .n{font-family:'Montserrat';font-weight:800;font-size:26px;color:var(--c-amarillo)}
+.status .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+/* lista de locales (voy hacia) */
+.zona{display:grid;gap:8px;max-height:38vh;overflow-y:auto;padding-right:2px}
+.zona button{text-align:left;background:var(--panel2);border:1px solid var(--line);
+  color:var(--tx);border-radius:var(--radius);padding:12px 14px;font-size:15px;cursor:pointer;
+  display:flex;align-items:center;gap:10px;font-family:'Roboto'}
+.zona button i{color:var(--mut);width:18px}
+.zona button.rec{border-color:var(--c-amarillo);background:#EAB30818}
+.zona button.rec i{color:var(--c-amarillo)}
+/* inputs */
+label{display:block;margin:14px 0 6px;font-family:'Montserrat';font-weight:600;font-size:14px}
+input,textarea{width:100%;background:#0f1013;color:var(--tx);border:1px solid var(--line);
+  border-radius:var(--radius);padding:13px;font-family:'Roboto';font-size:15px}
+textarea{min-height:90px;resize:vertical}
+input:focus,textarea:focus{outline:1px solid var(--c-amarillo)}
+/* modal */
+.overlay{position:fixed;inset:0;background:#000a;display:none;place-items:center;padding:16px;z-index:20}
+.overlay.on{display:grid}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  width:100%;max-width:440px;max-height:90vh;overflow:auto;padding:18px}
+.btn{border:0;border-radius:var(--radius);padding:14px 18px;font-family:'Montserrat';font-weight:700;
+  cursor:pointer;font-size:15px}
+.btn.prim{background:linear-gradient(135deg,var(--c-marca),var(--c-marca-oscuro));color:#fff;width:100%;margin-top:16px}
+.btn.gho{background:var(--panel2);color:var(--tx);border:1px solid var(--line)}
+.line{display:flex;justify-content:space-between;font-size:14px;padding:8px 0;border-bottom:1px solid var(--line)}
+.line:last-child{border-bottom:none}
+.line .k{color:var(--mut)}
+footer{padding:14px;text-align:center;color:#5b6068;font-size:11px;border-top:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+  background:#2a2d33;border:1px solid var(--line);color:#fff;padding:10px 16px;border-radius:var(--radius);
+  font-size:13px;opacity:0;transition:.25s;z-index:40;box-shadow:0 8px 24px #0008;max-width:90vw}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.pulse{animation:pl 1.4s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 #EAB30855}70%{box-shadow:0 0 0 10px #EAB30800}100%{box-shadow:0 0 0 0 #EAB30800}}
+.ok-big{text-align:center;padding:26px 0}
+.ok-big .b{font-size:56px}
+.note{font-size:12px;color:var(--mut);margin-top:10px;line-height:1.5}
+#cfgTecnicos{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+#cfgTecnicos button,.tecchips button{background:var(--panel2);border:1px solid var(--line);color:var(--tx);
+  padding:10px 13px;border-radius:11px;font:inherit;font-size:13px;cursor:pointer}
+#cfgTecnicos button.sel,.tecchips button.sel{border-color:var(--c-amarillo);color:var(--c-amarillo);background:#2a2512}
+header .logoimg{width:40px;height:40px;border-radius:10px;background:#fff;object-fit:contain;padding:4px}
+/* slide-to-confirm para finalizar jornada */
+.slidefin{width:100%}
+.slidefin-track{position:relative;height:64px;border-radius:var(--radius);overflow:hidden;
+  background:linear-gradient(180deg,#241a1c,#1b1416);border:1px solid #D32F2F55;
+  touch-action:none;user-select:none;-webkit-user-select:none}
+.slidefin-fill{position:absolute;top:0;left:0;bottom:0;width:0;
+  background:linear-gradient(135deg,var(--c-marca),var(--c-marca-oscuro))}
+.slidefin-label{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;
+  font-family:'Montserrat';font-weight:800;font-size:17px;letter-spacing:.4px;color:#FCA5A5}
+.slidefin-handle{position:absolute;top:6px;left:6px;width:52px;height:52px;border-radius:var(--radius);
+  background:#fff;color:var(--c-marca);display:grid;place-items:center;font-size:18px;
+  box-shadow:0 4px 14px #0009;cursor:grab;touch-action:none}
+.slidefin-track.done .slidefin-handle{background:var(--c-verde);color:#fff}
+/* login */
+.tecchips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 4px}
+#lgCod{letter-spacing:8px;font-family:'Montserrat';font-weight:800;text-align:center;font-size:22px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img class="logoimg" src="app/img/logo.png" alt="MTZ">
+    <div><b>MTZ Técnico Franquicias</b><small>Mantenimiento de franquicias · tu herramienta diaria</small></div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <span class="chip" id="netChip"><i class="fa-solid fa-wifi"></i> en línea</span>
+      <span class="chip" id="salirBtn" style="cursor:pointer;display:none" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></span>
+      <span class="chip" id="cfgBtn" style="cursor:pointer"><i class="fa-solid fa-gear"></i></span>
+    </div>
+  </header>
+  <div class="body" id="app"></div>
+  <footer>MTZ Técnico Franquicias</footer>
+</div>
+
+<!-- modal reporte de cierre -->
+<div class="overlay" id="ovRep"><div class="modal">
+  <h2 style="margin:0 0 4px">📝 Reporte de cierre</h2>
+  <p class="mut" style="margin:0;font-size:13px">Se envía junto al registro automático de tu jornada.</p>
+  <label style="color:#7ee2a8">✔ Tareas realizadas</label>
+  <textarea id="repTareas" placeholder="Ej: reparé cafetera en Berazategui, cambio resistencias en Quilmes..."></textarea>
+  <label style="color:var(--mostaza)">⏳ Pendientes</label>
+  <textarea id="repPend" placeholder="Qué quedó para mañana"></textarea>
+  <button class="btn prim" id="repSend">Enviar informe</button>
+</div></div>
+
+<!-- modal ajustes / sesión -->
+<div class="overlay" id="ovCfg"><div class="modal">
+  <h2 style="margin:0 0 4px"><i class="fa-solid fa-gear"></i> Sesión</h2>
+  <div class="line"><span class="k">Técnico</span><span id="cfgQuien">—</span></div>
+  <div class="line"><span class="k">Servidor</span><span id="cfgServer"></span></div>
+  <button class="btn gho" id="cfgLogout" style="width:100%;margin-top:16px">Cerrar sesión (cambiar de técnico)</button>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}</script>
+<script src="app/app.js"></script>
+</body>
+</html>
