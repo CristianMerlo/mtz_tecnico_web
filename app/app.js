@@ -30,7 +30,7 @@ let SES = null;
 try { SES = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); } catch (e) { SES = null; }
 if (SES && !SES.codigo) SES = null;
 // brazalete: sin tk o vencido -> hay que volver a poner el código (1x por día)
-if (SES && !SES.prueba && (!SES.tk || (SES.vence && SES.vence < new Date().toISOString()))) SES = null;
+if (SES && !SES.prueba && (!SES.tk || (SES.vence && SES.vence < nowLocal()))) SES = null;
 let TC = SES ? SES.codigo : '';
 
 const S = Object.assign({
@@ -41,6 +41,10 @@ let timer = null;
 
 function save(){ localStorage.setItem('ronda_live', JSON.stringify(S)); }
 function fmt(iso){ return iso ? iso.slice(11,16) : '—'; }
+// hora local en formato ISO sin zona (el server trabaja en ART -03; usar UTC
+// corría los relojes 3 horas adelante en el celular).
+function nowLocal(){ const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function sesionOK(t, cod){ return t && String(t.cod) === String(cod); }
 function abrirSesion(t){
   SES = { codigo: t.codigo, nombre: t.nombre, cod: t.cod || '', tk: t.tk || '', vence: t.vence || '', prueba: !!t.prueba };
@@ -122,7 +126,7 @@ async function enviarPing(motivo) {
     }
     const ev = motivo === 'llegada' ? '&ev=llegada' : '';
     const r = await api(`/p?tc=${encodeURIComponent(TC)}&lat=${S.lat}&lng=${S.lng}${ev}`);
-    S.ultimo = new Date().toISOString();
+    S.ultimo = nowLocal();
     S.ultimoOk = r.ok;
     if (r.ok) {
       S.pings++; save(); render();
@@ -130,7 +134,7 @@ async function enviarPing(motivo) {
       else if (motivo === 'manual') toast('📡 Ubicación enviada');
       // bandera REC del server: jornada abierta después de las 19 h → recordatorio (1x por día)
       if (/REC/.test(r.text)) {
-        const hoy = new Date().toISOString().slice(0, 10);
+        const hoy = nowLocal().slice(0, 10);
         if (localStorage.getItem('ronda_rec') !== hoy) {
           localStorage.setItem('ronda_rec', hoy);
           toast('⏰ Tip: cuando termines, deslizá para finalizar la jornada', 6000);
@@ -148,7 +152,7 @@ async function iniciar() {
   await ubicacion();                      // pide permiso de ubicación con el toque
   const r = await api(`/inicio?tc=${encodeURIComponent(TC)}`);
   if (!r.ok && r.status !== 0) { toast('El servidor respondió: ' + r.text); return; }
-  Object.assign(S, { activo: true, inicio: new Date().toISOString(), fin: null,
+  Object.assign(S, { activo: true, inicio: nowLocal(), fin: null,
                     pings: 0, viaje: null, viajes: [], dueno: TC });
   save(); render(); pingLoop(true);
   toast('🟢 Jornada iniciada — el grupo ya fue avisado');
@@ -164,7 +168,7 @@ function pingLoop(inmediato) {
 async function cerrar() {
   clearInterval(timer);
   const r = await api(`/fin?tc=${encodeURIComponent(TC)}`);
-  S.activo = false; S.fin = new Date().toISOString(); save(); render();
+  S.activo = false; S.fin = nowLocal(); save(); render();
   if (r.ok) $('#ovRep').classList.add('on');
   else toast('No se pudo cerrar la jornada: ' + safeErr(r.text));
 }
