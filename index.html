@@ -77,6 +77,9 @@ input:focus,textarea:focus{outline:1px solid var(--c-amarillo)}
 /* modal */
 .overlay{position:fixed;inset:0;background:#000a;display:none;place-items:center;padding:16px;z-index:20}
 .overlay.on{display:grid}
+.modal{position:relative}
+.xclose{position:absolute;top:10px;right:12px;font-size:22px;line-height:1;color:var(--mut);cursor:pointer;padding:4px 8px}
+.xclose:active{color:#fff}
 .modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
   width:100%;max-width:440px;max-height:90vh;overflow:auto;padding:18px}
 .btn{border:0;border-radius:var(--radius);padding:14px 18px;font-family:'Montserrat';font-weight:700;
@@ -136,6 +139,7 @@ header .logoimg{width:40px;height:40px;border-radius:10px;background:#fff;object
 
 <!-- modal reporte de cierre -->
 <div class="overlay" id="ovRep"><div class="modal">
+  <span class="xclose" data-close="ovRep">×</span>
   <h2 style="margin:0 0 4px">📝 Reporte de cierre</h2>
   <p class="mut" style="margin:0;font-size:13px">Se envía junto al registro automático de tu jornada.</p>
   <label style="color:#7ee2a8">✔ Tareas realizadas</label>
@@ -147,10 +151,13 @@ header .logoimg{width:40px;height:40px;border-radius:10px;background:#fff;object
 
 <!-- modal ajustes / sesión -->
 <div class="overlay" id="ovCfg"><div class="modal">
+  <span class="xclose" data-close="ovCfg">×</span>
   <h2 style="margin:0 0 4px"><i class="fa-solid fa-gear"></i> Sesión</h2>
   <div class="line"><span class="k">Técnico</span><span id="cfgQuien">—</span></div>
   <div class="line"><span class="k">Servidor</span><span id="cfgServer"></span></div>
-  <button class="btn gho" id="cfgLogout" style="width:100%;margin-top:16px">Cerrar sesión (cambiar de técnico)</button>
+  <div class="line"><span class="k">App en el celular</span><span id="cfgInst">—</span></div>
+  <button class="btn prim" id="instBtn" style="width:100%;margin-top:12px;display:none"><i class="fa-solid fa-download"></i> Instalar app</button>
+  <button class="btn gho" id="cfgLogout" style="width:100%;margin-top:10px">Cerrar sesión (cambiar de técnico)</button>
 </div></div>
 
 <div class="toast" id="toast"></div>

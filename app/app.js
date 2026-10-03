@@ -456,11 +456,50 @@ window.addEventListener('offline', refrescoChipRed);
 refrescoChipRed();
 
 $('#cfgBtn').onclick = () => {
+  estadoInstalacion();
   $('#cfgQuien').textContent = SES ? (SES.nombre || SES.codigo) + (SES.prueba ? ' (prueba)' : '') : 'sin sesión';
   $('#cfgServer').textContent = SERVER;
   $('#ovCfg').classList.add('on');
 };
 $('#cfgLogout').onclick = cerrarSesion;
+
+// ---------- cerrar modales: toque afuera del cuadro o × ----------
+document.querySelectorAll('.overlay').forEach((ov) => {
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('on'); });
+});
+document.querySelectorAll('.xclose').forEach((x) => {
+  x.onclick = () => $('#' + x.dataset.close).classList.remove('on');
+});
+
+// ---------- instalación PWA ----------
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const b = $('#instBtn'); if (b) { b.style.display = ''; b.onclick = pedirInstalacion; }
+  const t = $('#cfgInst'); if (t) t.textContent = 'lista para instalar';
+});
+async function pedirInstalacion() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  const b = $('#instBtn'); if (b) b.style.display = 'none';
+}
+window.addEventListener('appinstalled', () => {
+  const t = $('#cfgInst'); if (t) t.textContent = '✓ instalada';
+  const b = $('#instBtn'); if (b) b.style.display = 'none';
+  toast('✅ App instalada en tu celular');
+});
+function estadoInstalacion() {
+  const t = $('#cfgInst'); if (!t) return;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (standalone) { t.textContent = '✓ ya instalada (se abre sola)'; return; }
+  if (deferredPrompt) { t.textContent = 'lista para instalar'; return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  t.textContent = ios ? 'Safari: Compartir › Agregar a Inicio'
+                      : 'Menú ⋮ de Chrome › Instalar aplicación';
+}
 $('#salirBtn').onclick = cerrarSesion;
 $('#repSend').onclick = enviarReporte;
 
