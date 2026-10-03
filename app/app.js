@@ -441,7 +441,7 @@ function render() {
   if (ba) ba.onclick = async () => {
     pingAuto();
     const r = await api(`/admin?tc=${encodeURIComponent(TC)}`);
-    if (r.ok) toast(r.text === 'ya anunciado hoy' ? '📋 Ya lo habías anunciado hoy' : '📋 Aviso enviado al grupo');
+    if (r.ok) toast(r.text.startsWith('ya anunciado') ? '📋 Ya lo avisaste hace menos de 1 hora' : '📋 Aviso enviado al grupo');
     else toast('Error: ' + safeErr(r.text));
   };
   $('#btnGen').onclick = pingAuto;
