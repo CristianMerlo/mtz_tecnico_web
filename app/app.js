@@ -37,6 +37,13 @@ const S = Object.assign({
   activo: false, inicio: null, fin: null, pings: 0, ultimo: null,
   ultimoOk: true, lat: null, lng: null, viaje: null, viajes: [], dueno: null,
 }, JSON.parse(localStorage.getItem('ronda_live') || 'null') || {});
+// lo guardado de otro día no debe arrastrarse: evita jornadas y "en camino"
+// fantasma al abrir la app al día siguiente
+{ const _hoy = nowLocal().slice(0, 10);
+  if (String(S.inicio || '').slice(0, 10) !== _hoy) {
+    Object.assign(S, { activo: false, inicio: null, fin: null, pings: 0, ultimo: null, viaje: null, viajes: [] });
+    save();
+  } }
 let timer = null;
 
 function save(){ localStorage.setItem('ronda_live', JSON.stringify(S)); }
@@ -168,7 +175,7 @@ function pingLoop(inmediato) {
 async function cerrar() {
   clearInterval(timer);
   const r = await api(`/fin?tc=${encodeURIComponent(TC)}`);
-  S.activo = false; S.fin = nowLocal(); save(); render();
+  S.activo = false; S.fin = nowLocal(); S.viaje = null; save(); render();
   if (r.ok) $('#ovRep').classList.add('on');
   else toast('No se pudo cerrar la jornada: ' + safeErr(r.text));
 }
