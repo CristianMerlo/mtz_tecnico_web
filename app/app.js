@@ -246,6 +246,7 @@ function abrirProveedorDialog(L) {
     <button class="big start" style="width:100%;margin-top:12px" id="provOk"><i class="fa-solid fa-paper-plane"></i> Avisar al grupo</button>
     <button class="btn gho" style="width:100%;margin-top:8px" id="provCancel">Cancelar</button></div>`;
   document.body.appendChild(d);
+  d.classList.add('on');
   d.querySelector('#provCancel').onclick = () => d.remove();
   d.querySelector('#provOk').onclick = () => {
     const x = d.querySelector('#provTxt').value.trim();
