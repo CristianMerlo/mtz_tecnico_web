@@ -1,7 +1,7 @@
 /* Service worker MTZ Técnico Franquicias: la API y api_base.json siempre a red;
    solo se cachea la cáscara. Funciona igual servido desde el túnel (raiz "/")
    que desde GitHub Pages ("/mtz_tecnico_web/"): todo relativo a este script. */
-const CACHE = 'mtz-tecnico-v10';
+const CACHE = 'mtz-tecnico-v11';
 const BASE = self.location.pathname.replace(/[^/]*$/, '');
 const SHELL = [BASE, BASE + 'app/app.js', BASE + 'manifest.json', BASE + 'app/img/logo.png',
                BASE + 'app/img/icon-192.png', BASE + 'app/img/icon-512.png', BASE + 'icon-512.png'];

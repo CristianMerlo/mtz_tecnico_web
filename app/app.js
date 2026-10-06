@@ -97,7 +97,7 @@ function ubicacion() {
   });
 }
 
-const PROTEGIDAS = ['/p', '/ping', '/inicio', '/fin', '/viaje', '/soporte', '/admin', '/reporte', '/enviar'];
+const PROTEGIDAS = ['/p', '/ping', '/inicio', '/fin', '/viaje', '/soporte', '/coordinacion', '/admin', '/reporte', '/enviar'];
 async function api(path, opts) {
   if (SES) {
     const p = path.split('?')[0];
@@ -217,6 +217,43 @@ async function enviarSoporte(destino) {
   } else toast('Error: ' + r.text);
 }
 
+// ---------- coordinación de trabajos (servicio tercerizado) ----------
+async function enviarCoordinacion(destino, proveedor) {
+  const r = await api(`/coordinacion?tc=${encodeURIComponent(TC)}&dest=${encodeURIComponent(destino)}&prov=${encodeURIComponent(proveedor || '')}`);
+  if (r.ok) {
+    toast(r.text.startsWith('coordinación ya') ? '🤝 Ya lo habías anunciado hoy' : '🤝 Aviso enviado al grupo: coordinando servicio');
+  } else if (r.status === 404) {
+    toast('No encontré ese local. Elegilo de la lista o probá con la sigla.');
+  } else toast('Error: ' + r.text);
+}
+
+// Historial de proveedores en el celular del técnico: escribe libre o elige del desplegable
+function provHist() { try { return JSON.parse(localStorage.getItem('mtz_prov_hist') || '[]'); } catch (e) { return []; } }
+function provGuardar(x) {
+  x = (x || '').trim(); if (!x) return;
+  const h = provHist().filter((v) => v.toLowerCase() !== x.toLowerCase());
+  h.unshift(x); localStorage.setItem('mtz_prov_hist', JSON.stringify(h.slice(0, 15)));
+}
+function abrirProveedorDialog(L) {
+  const viejo = document.querySelector('#ovProv'); if (viejo) viejo.remove();
+  const d = document.createElement('div');
+  d.className = 'overlay'; d.id = 'ovProv';
+  d.innerHTML = `<div class="modal">
+    <h2 style="margin:0 0 4px"><i class="fa-solid fa-handshake" style="color:var(--mostaza)"></i> Coordinación en ${esc(L.nombre)}</h2>
+    <p class="mut" style="margin:0;font-size:13px">¿Qué proveedor o servicio tercerizado se coordina? (opcional)</p>
+    <input id="provTxt" list="provLista" placeholder="Ej: plomería García, fumigación…" style="margin-top:12px" autocomplete="off">
+    <datalist id="provLista">${provHist().map((x) => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+    <button class="big start" style="width:100%;margin-top:12px" id="provOk"><i class="fa-solid fa-paper-plane"></i> Avisar al grupo</button>
+    <button class="btn gho" style="width:100%;margin-top:8px" id="provCancel">Cancelar</button></div>`;
+  document.body.appendChild(d);
+  d.querySelector('#provCancel').onclick = () => d.remove();
+  d.querySelector('#provOk').onclick = () => {
+    const x = d.querySelector('#provTxt').value.trim();
+    d.remove(); provGuardar(x); enviarCoordinacion(L.sigla, x);
+  };
+  setTimeout(() => d.querySelector('#provTxt').focus(), 80);
+}
+
 // ---------- técnicos (para el login) ----------
 let TECNICOS = [];
 async function cargarTecnicos(){
@@ -257,11 +294,16 @@ function abrirSelector(modo) {
   selectorModo = modo;
   const d = asegurarViajeOverlay();
   const soporte = modo === 'soporte';
+  const coord = modo === 'coordinacion';
   d.querySelector('#selTitulo').innerHTML = soporte
     ? '<i class="fa-solid fa-headset" style="color:var(--mostaza)"></i> Doy soporte remoto a…'
+    : coord
+    ? '<i class="fa-solid fa-handshake" style="color:var(--mostaza)"></i> Coordinación de trabajos en…'
     : '<i class="fa-solid fa-van-shuttle" style="color:#5aa9e6"></i> Voy hacia…';
   d.querySelector('#selDesc').textContent = soporte
     ? 'Avisás al grupo que estás atendiendo ese local a distancia.'
+    : coord
+    ? 'El local pidió un servicio tercerizado (otro proveedor). Avisás al grupo y queda registrado.'
     : 'Avisás al grupo ahora; la llegada la confirma tu celular solo.';
   cargarLocales().then(() => { pinteLista(''); const inp = $('#viajeTxt'); if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 80); } });
   d.classList.add('on');
@@ -276,7 +318,9 @@ function pinteLista(filtroTxt) {
   const hits = (LOCALES || []).filter((L) => !f || norm(L.nombre).includes(f) || norm(L.localidad).includes(f)
               || norm(L.sigla).includes(f) || (L.alias || []).some((a) => norm(a).includes(f)));
   const sel = (L) => { document.querySelector('#ovViaje').classList.remove('on');
-    if (selectorModo === 'soporte') enviarSoporte(L.sigla); else enviarViaje(L.sigla); };
+    if (selectorModo === 'soporte') enviarSoporte(L.sigla);
+    else if (selectorModo === 'coordinacion') abrirProveedorDialog(L);
+    else enviarViaje(L.sigla); };
   for (const L of hits.slice(0, 40)) {
     const b = document.createElement('button');
     const rec = recientes.includes(norm(L.nombre)) || recientes.includes(L.sigla.toLowerCase());
@@ -416,6 +460,7 @@ function render() {
     ${enCurso ? `<button class="big llegar" id="btnLlegada">
       <i class="fa-solid fa-person-walking-arrow-right"></i> Llegué al local</button>` : ''}
     <button class="big gho" id="btnSoporte"><i class="fa-solid fa-headset"></i> 🖥️ Soporte remoto a un local</button>
+    <button class="big gho" id="btnCoordinar"><i class="fa-solid fa-handshake"></i> 🤝 Coordinación de trabajos</button>
     ${enCurso ? `<button class="big gho" id="btnAdmin"><i class="fa-solid fa-clipboard-check"></i> 📋 Trabajo administrativo</button>` : ''}
     <div class="status">
       <div class="card" style="padding:12px"><div class="n">${fmt(S.inicio)}</div><div class="l">Inicio</div></div>
@@ -444,6 +489,7 @@ function render() {
   }
   $('#btnViaje').onclick = () => { pingAuto(); abrirSelector('viaje'); };
   $('#btnSoporte').onclick = () => { pingAuto(); abrirSelector('soporte'); };
+  $('#btnCoordinar').onclick = () => { pingAuto(); abrirSelector('coordinacion'); };
   const ba = $('#btnAdmin');
   if (ba) ba.onclick = async () => {
     pingAuto();
