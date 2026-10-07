@@ -158,11 +158,18 @@ async function iniciar() {
   if (!TC) { render(); return; }
   await ubicacion();                      // pide permiso de ubicación con el toque
   const r = await api(`/inicio?tc=${encodeURIComponent(TC)}`);
-  if (!r.ok && r.status !== 0) { toast('El servidor respondió: ' + r.text); return; }
-  Object.assign(S, { activo: true, inicio: nowLocal(), fin: null,
-                    pings: 0, viaje: null, viajes: [], dueno: TC });
+  if (!r.ok && r.status !== 0) { toast('El servidor respondió: ' + safeErr(r.text)); return; }
+  // el server dice la verdad ahora: nueva | ya_abierta | reapertura (2ª sesión del día)
+  const estado = (r.text || '').split(' ')[0];
+  Object.assign(S, { activo: true, fin: null, pings: 0, viaje: null, viajes: [], dueno: TC });
+  if (String(S.inicio || '').slice(0, 10) !== nowLocal().slice(0, 10)) S.inicio = nowLocal();
   save(); render(); pingLoop(true);
-  toast('🟢 Jornada iniciada — el grupo ya fue avisado');
+  if (estado === 'reapertura')
+    toast('⚠️ Segunda sesión hoy: le avisé al supervisor (queda registrado)', 7000);
+  else if (estado === 'ya_abierta')
+    toast('🟡 Ya tenías la jornada abierta — seguís en turno');
+  else
+    toast('🟢 Jornada iniciada — el grupo ya fue avisado');
 }
 
 function pingLoop(inmediato) {
