@@ -25,6 +25,13 @@ const URL_LOCALIZADOR = 'https://cristianmerlo.github.io/localizador-de-locales/
 const SES_KEY = 'mtz_sesion';
 const app = $('#app');
 
+// ---------- offline: cache de técnicos + clave con hash ----------
+async function _hashClave(cod, tc){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('MTZ_V1:'+cod+':'+tc));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function _cacheClaveKey(tc){ return 'mtz_cache_clave_' + tc; }
+
 // ---------- sesión (código de 4 dígitos, mismos que el Generador) ----------
 let SES = null;
 try { SES = JSON.parse(localStorage.getItem(SES_KEY) || 'null'); } catch (e) { SES = null; }
@@ -266,8 +273,10 @@ function abrirProveedorDialog(L) {
 let TECNICOS = [];
 async function cargarTecnicos(){
   try { const r = await fetch(SERVER + '/tecnicos', { cache: 'no-store' }); const l = await r.json();
-        if (Array.isArray(l) && l.length) TECNICOS = l; }
-  catch (e) { /* sin red: vacío */ }
+        if (Array.isArray(l) && l.length) { TECNICOS = l; try { localStorage.setItem('mtz_cache_tec', JSON.stringify(l)); } catch(e){} return; } }
+  catch (e) { /* sin red: intento con cache */ }
+  try { const c = JSON.parse(localStorage.getItem('mtz_cache_tec') || '[]');
+        if (Array.isArray(c) && c.length) TECNICOS = c; } catch (e) {}
 }
 
 // ---------- selector de local ("Voy hacia" / "Soporte remoto") ----------
@@ -428,9 +437,22 @@ function renderLogin() {
       d = r.ok ? await r.json() : {};
     } catch (e) { r = null; }
     $('#lgGo').disabled = false;
-    if (!r) { $('#lgMsg').textContent = 'Sin conexión con el servidor. Reintentá.'; return; }
+    if (!r) {
+      // Offline: si la clave coincide con la última vez que entró por server, dejar pasar en modo lectura
+      const esperado = localStorage.getItem(_cacheClaveKey(t.codigo));
+      const calc = await _hashClave(cod, t.codigo);
+      if (esperado && esperado === calc) {
+        abrirSesion(Object.assign({}, t, { tk: '', vence: '', cod: '', offline: true }));
+        render();
+        toast('📡 Sin conexión: entrás en modo offline (jornada visible, informe exportable).');
+        return;
+      }
+      $('#lgMsg').textContent = 'Sin conexión con el servidor. Reintentá.';
+      return;
+    }
     if (r.status === 401) { $('#lgMsg').textContent = 'Código incorrecto. Verificá tu código personal.'; $('#lgCod').focus(); return; }
     if (!r.ok) { $('#lgMsg').textContent = 'Error: ' + safeErr(JSON.stringify(d)); return; }
+    try { localStorage.setItem(_cacheClaveKey(t.codigo), await _hashClave(cod, t.codigo)); } catch(e){}
     abrirSesion(Object.assign({}, t, { tk: d.tk, vence: d.vence, cod: d.cod })); render();
     toast(`👋 Hola ${t.nombre.split(' ')[0]}, listo para trabajar`);
   };
@@ -446,6 +468,12 @@ function renderLogin() {
 
 function render() {
   if (!SES) { renderLogin(); return; }
+  if (SES.offline) {
+    const _c = document.createElement('div'); _c.className='card';
+    _c.style.cssText='background:#7a3b00;color:#fff;font-size:13px;padding:8px 12px;margin:8px 12px 0';
+    _c.innerHTML='⚠️ <b>Modo offline</b> · podés ver tu jornada y exportar informes. Pings/llegadas/cierres se registran cuando vuelva la conexión.';
+    app.parentNode && app.parentNode.insertBefore(_c, app); _c.id='ovOffline';
+  } else { const x=document.getElementById('ovOffline'); if (x) x.remove(); }
   const enCurso = S.activo, cerrada = !enCurso && S.fin && S.inicio;
   let chip = '<span class="chip off"><i class="fa-solid fa-moon"></i> fuera de horario</span>';
   if (enCurso) chip = '<span class="chip live pulse"><i class="fa-solid fa-bolt"></i> EN TURNO</span>';
