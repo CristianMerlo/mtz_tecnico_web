@@ -186,6 +186,14 @@ function pingLoop(inmediato) {
   timer = setInterval(() => enviarPing('periódico'), INTERVAL_MS);
 }
 
+// Plan B (10/10): ningun aviso (viaje/soporte/coordinacion) bloquea sin jornada
+// abierta: si hace falta la inicia sola y sigue. El tecnico sigue responsable de su fichada.
+async function asegurarJornada() {
+  if (S.activo) return true;
+  await iniciar();
+  return !!S.activo;
+}
+
 async function cerrar() {
   clearInterval(timer);
   const r = await api(`/fin?tc=${encodeURIComponent(TC)}`);
@@ -212,6 +220,7 @@ async function enviarReporte() {
 }
 
 async function enviarViaje(destino) {
+  if (!(await asegurarJornada())) { toast('Sin jornada y no la pude abrir: revisá la conexión y reintentá'); return; }
   const r = await api(`/viaje?tc=${encodeURIComponent(TC)}&dest=${encodeURIComponent(destino)}`);
   if (r.ok) {
     const L = r.text.replace('viaje registrado hacia ', '');
