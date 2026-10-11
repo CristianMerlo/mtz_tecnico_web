@@ -280,10 +280,20 @@ function abrirProveedorDialog(L) {
 
 // ---------- técnicos (para el login) ----------
 let TECNICOS = [];
-async function cargarTecnicos(){
-  try { const r = await fetch(SERVER + '/tecnicos', { cache: 'no-store' }); const l = await r.json();
-        if (Array.isArray(l) && l.length) { TECNICOS = l; try { localStorage.setItem('mtz_cache_tec', JSON.stringify(l)); } catch(e){} return; } }
-  catch (e) { /* sin red: intento con cache */ }
+async function cargarTecnicos(intentos = 3) {
+  for (let i = 0; i < intentos; i++) {
+    try {
+      const r = await fetch(SERVER + '/tecnicos', { cache: 'no-store' });
+      const l = await r.json();
+      if (Array.isArray(l) && l.length) {
+        TECNICOS = l;
+        try { localStorage.setItem('mtz_cache_tec', JSON.stringify(l)); } catch(e){}
+        return;
+      }
+    } catch (e) { /* red caída: reintenta */ }
+    if (i < intentos - 1) await new Promise(r => setTimeout(r, 2000));
+  }
+  // agotados los intentos: cache local
   try { const c = JSON.parse(localStorage.getItem('mtz_cache_tec') || '[]');
         if (Array.isArray(c) && c.length) TECNICOS = c; } catch (e) {}
 }
@@ -423,7 +433,16 @@ function renderLogin() {
   let selCod = sugerido;
   const d = $('#lgTecnicos');
   if (!TECNICOS.length) {
-    d.innerHTML = '<span class="note">(sin lista de técnicos: chequeá la conexión o entrá en modo prueba)</span>';
+    d.innerHTML = `<input id="lgManualTc" placeholder="Escribí tu nombre: TOMAS, FRAN…" autocapitalize="characters" style="width:100%;margin-bottom:6px">
+      <button class="btn gho" id="lgRetry" style="width:100%;margin-top:2px">\u{1f504} Reintentar cargar la lista</button>`;
+    const manual = d.querySelector('#lgManualTc');
+    if (manual && selCod) manual.value = selCod;
+    if (manual) manual.oninput = () => { selCod = manual.value.trim().toUpperCase(); };
+    const retry = d.querySelector('#lgRetry');
+    if (retry) retry.onclick = async () => {
+      retry.textContent = 'Cargando…'; retry.disabled = true;
+      TECNICOS = []; await cargarTecnicos(2); renderLogin();
+    };
   } else {
     d.innerHTML = TECNICOS.map((t) =>
       `<button data-c="${esc(t.codigo)}" class="${selCod === t.codigo ? 'sel' : ''}">${esc(t.nombre)}</button>`).join('');
@@ -435,9 +454,10 @@ function renderLogin() {
   }
   $('#lgCod').addEventListener('input', function(){ this.value = this.value.replace(/\D/g, '').slice(0, 4); });
   $('#lgGo').onclick = async () => {
-    const t = TECNICOS.find((x) => x.codigo === selCod);
+    let t = TECNICOS.find((x) => x.codigo === selCod);
+    if (!t && selCod) t = { codigo: selCod, nombre: selCod.charAt(0) + selCod.slice(1).toLowerCase() };
     const cod = $('#lgCod').value.trim();
-    if (!t) { $('#lgMsg').textContent = 'Elegí tu nombre de la lista primero.'; return; }
+    if (!t) { $('#lgMsg').textContent = 'Escribí tu nombre de técnico o esperá a que cargue la lista.'; return; }
     if (cod.length !== 4) { $('#lgMsg').textContent = 'Completá los 4 dígitos.'; $('#lgCod').focus(); return; }
     $('#lgGo').disabled = true; $('#lgMsg').textContent = 'Verificando…';
     let r, d = {};
