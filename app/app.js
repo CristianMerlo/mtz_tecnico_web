@@ -105,13 +105,20 @@ function ubicacion() {
 }
 
 const PROTEGIDAS = ['/p', '/ping', '/inicio', '/fin', '/viaje', '/soporte', '/coordinacion', '/admin', '/reporte', '/enviar'];
+// fetch con timeout: en conexiones malas (3G) un fetch sin límite se cuelga para siempre
+async function fetchT(url, opts, ms = 12000) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: c.signal }); }
+  finally { clearTimeout(t); }
+}
 async function api(path, opts) {
   if (SES) {
     const p = path.split('?')[0];
     if (PROTEGIDAS.includes(p)) path += (path.includes('?') ? '&' : '?') + 'tk=' + encodeURIComponent(SES.tk || '');
   }
   try {
-    const r = await fetch(SERVER + path, opts || { cache: 'no-store' });
+    const r = await fetchT(SERVER + path, opts || { cache: 'no-store' });
     const t = (await r.text()).slice(0, 120);
     if (r.status === 401 && /sesi/.test(t) && SES && !SES.prueba) {
       cerrarSesion();                      // brazalete vencido: vuelve al login solito
@@ -283,7 +290,7 @@ let TECNICOS = [];
 async function cargarTecnicos(intentos = 3) {
   for (let i = 0; i < intentos; i++) {
     try {
-      const r = await fetch(SERVER + '/tecnicos', { cache: 'no-store' });
+      const r = await fetchT(SERVER + '/tecnicos', { cache: 'no-store' }, 10000);
       const l = await r.json();
       if (Array.isArray(l) && l.length) {
         TECNICOS = l;
@@ -462,7 +469,7 @@ function renderLogin() {
     $('#lgGo').disabled = true; $('#lgMsg').textContent = 'Verificando…';
     let r, d = {};
     try {
-      r = await fetch(SERVER + `/login?tc=${encodeURIComponent(t.codigo)}&cod=${cod}`, { cache: 'no-store' });
+      r = await fetchT(SERVER + `/login?tc=${encodeURIComponent(t.codigo)}&cod=${cod}`, { cache: 'no-store' }, 15000);
       d = r.ok ? await r.json() : {};
     } catch (e) { r = null; }
     $('#lgGo').disabled = false;
