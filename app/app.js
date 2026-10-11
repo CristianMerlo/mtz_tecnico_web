@@ -311,7 +311,7 @@ let selectorModo = 'viaje';
 async function cargarLocales() {
   if (LOCALES && LOCALES.length) return LOCALES;
   try {
-    const r = await fetch(SERVER + '/locales', { cache: 'no-store' });
+    const r = await fetchT(SERVER + '/locales', { cache: 'no-store' }, 10000);
     if (r.ok) LOCALES = await r.json();
   } catch (e) { /* sin red: vacío */ }
   return LOCALES || [];
