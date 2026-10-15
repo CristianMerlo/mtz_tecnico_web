@@ -43,12 +43,13 @@ let TC = SES ? SES.codigo : '';
 const S = Object.assign({
   activo: false, inicio: null, fin: null, pings: 0, ultimo: null,
   ultimoOk: true, lat: null, lng: null, viaje: null, viajes: [], dueno: null,
+  pendienteFin: false, pendienteInicio: false,
 }, JSON.parse(localStorage.getItem('ronda_live') || 'null') || {});
 // lo guardado de otro día no debe arrastrarse: evita jornadas y "en camino"
 // fantasma al abrir la app al día siguiente
 { const _hoy = nowLocal().slice(0, 10);
   if (String(S.inicio || '').slice(0, 10) !== _hoy) {
-    Object.assign(S, { activo: false, inicio: null, fin: null, pings: 0, ultimo: null, viaje: null, viajes: [] });
+    Object.assign(S, { activo: false, inicio: null, fin: null, pings: 0, ultimo: null, viaje: null, viajes: [], pendienteFin: false, pendienteInicio: false });
     save();
   } }
 let timer = null;
@@ -151,6 +152,7 @@ async function enviarPing(motivo) {
     S.ultimoOk = r.ok;
     if (r.ok) {
       S.pings++; save(); render();
+      if (S.pendienteFin || S.pendienteInicio) reconciliar();   // el ping confirmó red: reintentar lo que quedó a medias
       if (motivo === 'llegada') toast('✅ Llegada registrada — ya avisé mi posición');
       else if (motivo === 'manual') toast('📡 Ubicación enviada');
       // bandera REC del server: jornada abierta después de las 19 h → recordatorio (1x por día)
@@ -172,10 +174,17 @@ async function iniciar() {
   if (!TC) { render(); return; }
   await ubicacion();                      // pide permiso de ubicación con el toque
   const r = await api(`/inicio?tc=${encodeURIComponent(TC)}`);
-  if (!r.ok && r.status !== 0) { toast('El servidor respondió: ' + safeErr(r.text)); return; }
+  // Autoritativo: SOLO nos ponemos "en turno" si el server lo confirmó. Antes un
+  // status 0 (corte de red/túnel) no retornaba y abría la jornada en el celular sin
+  // registro en el server -> el viaje/fin fallaban después (caso Francisco).
+  if (!r.ok) {
+    S.pendienteInicio = true; save(); render();
+    toast('⚠️ Sin conexión: al volver se inicia sola tu jornada', 6000);
+    return;
+  }
   // el server dice la verdad ahora: nueva | ya_abierta | reapertura (2ª sesión del día)
   const estado = (r.text || '').split(' ')[0];
-  Object.assign(S, { activo: true, fin: null, pings: 0, viaje: null, viajes: [], dueno: TC });
+  Object.assign(S, { activo: true, fin: null, pings: 0, viaje: null, viajes: [], dueno: TC, pendienteInicio: false });
   if (String(S.inicio || '').slice(0, 10) !== nowLocal().slice(0, 10)) S.inicio = nowLocal();
   save(); render(); pingLoop(true);
   if (estado === 'reapertura')
@@ -202,11 +211,41 @@ async function asegurarJornada() {
 }
 
 async function cerrar() {
-  clearInterval(timer);
   const r = await api(`/fin?tc=${encodeURIComponent(TC)}`);
-  S.activo = false; S.fin = nowLocal(); S.viaje = null; save(); render();
-  if (r.ok) $('#ovRep').classList.add('on');
-  else toast('No se pudo cerrar la jornada: ' + safeErr(r.text));
+  // Autoritativo: NO pintamos "cerrada" si el server no la registró. Antes se marcaba
+  // FIN local pase lo que pasara: con un corte de red el técnico veía "cerrada" pero
+  // el grupo/BD nunca recibieron el cierre (caso Ana). Seguimos "en turno" y reintentamos.
+  if (!r.ok) {
+    S.pendienteFin = true; save(); render();
+    toast('⚠️ No se pudo cerrar: dejá la app abierta, se cierra sola al volver la red', 7000);
+    return;
+  }
+  clearInterval(timer);
+  S.activo = false; S.fin = nowLocal(); S.viaje = null; S.pendienteFin = false; save(); render();
+  $('#ovRep').classList.add('on');
+}
+
+// Reintenta la apertura/cierre que quedaron pendientes por un corte de red o del túnel.
+// Se dispara al recuperar conexión, al abrir la app y en cada ping exitoso.
+async function reconciliar() {
+  if (!TC || !SES || (!S.pendienteFin && !S.pendienteInicio)) return;
+  if (S.pendienteFin) {
+    const r = await api(`/fin?tc=${encodeURIComponent(TC)}`);
+    if (r.ok) {
+      clearInterval(timer);
+      S.activo = false; S.fin = nowLocal(); S.viaje = null; S.pendienteFin = false; save(); render();
+      toast('✅ Cierre registrado al recuperar la conexión', 5000);
+      $('#ovRep').classList.add('on');
+    }
+  } else if (S.pendienteInicio) {
+    const r = await api(`/inicio?tc=${encodeURIComponent(TC)}`);
+    if (r.ok) {
+      Object.assign(S, { activo: true, fin: null, pings: 0, viaje: null, viajes: [], dueno: TC, pendienteInicio: false });
+      if (String(S.inicio || '').slice(0, 10) !== nowLocal().slice(0, 10)) S.inicio = nowLocal();
+      save(); render(); pingLoop(true);
+      toast('✅ Jornada iniciada al recuperar la conexión', 5000);
+    }
+  }
 }
 
 async function enviarReporte() {
@@ -510,6 +549,10 @@ function render() {
     _c.innerHTML='⚠️ <b>Modo offline</b> · podés ver tu jornada y exportar informes. Pings/llegadas/cierres se registran cuando vuelva la conexión.';
     app.parentNode && app.parentNode.insertBefore(_c, app); _c.id='ovOffline';
   } else { const x=document.getElementById('ovOffline'); if (x) x.remove(); }
+  // cartel persistente: hay una acción de jornada que la app aún no pudo confirmar con el server
+  let pend = '';
+  if (S.pendienteFin) pend = '<div class="card" style="background:#7a3b00;color:#fff;font-size:13px;padding:8px 12px;margin:8px 12px 0">⏳ <b>Cierre pendiente</b> · la app lo reintentará sola al volver la red. No cierres la sesión.</div>';
+  else if (S.pendienteInicio) pend = '<div class="card" style="background:#7a3b00;color:#fff;font-size:13px;padding:8px 12px;margin:8px 12px 0">⏳ <b>Inicio pendiente</b> · tu jornada se abrirá sola al volver la red.</div>';
   const enCurso = S.activo, cerrada = !enCurso && S.fin && S.inicio;
   let chip = '<span class="chip off"><i class="fa-solid fa-moon"></i> fuera de horario</span>';
   if (enCurso) chip = '<span class="chip live pulse"><i class="fa-solid fa-bolt"></i> EN TURNO</span>';
@@ -518,6 +561,7 @@ function render() {
                  (SES.cod ? '&cod=' + encodeURIComponent(SES.cod) : '');
 
   app.innerHTML = `
+    ${pend}
     <div class="card row spread">
       <div class="row"><div class="logo" style="width:44px;height:44px;border-radius:12px;background:var(--mostaza);
         display:grid;place-items:center;color:#111;font-weight:800;font-family:Montserrat">
@@ -580,7 +624,7 @@ function refrescoChipRed() {
   if (navigator.onLine) c.className = 'chip', c.innerHTML = '<i class="fa-solid fa-wifi"></i> en línea';
   else c.className = 'chip off', c.innerHTML = '<i class="fa-solid fa-plane-slash"></i> sin red';
 }
-window.addEventListener('online', refrescoChipRed);
+window.addEventListener('online', () => { refrescoChipRed(); reconciliar(); });
 window.addEventListener('offline', refrescoChipRed);
 refrescoChipRed();
 
@@ -640,5 +684,6 @@ if (TC) $('#salirBtn').style.display = '';
   // si quedó una jornada abierta de antes, retomar el ciclo de pings
   if (S.activo && TC) { S.dueno = S.dueno || TC; pingLoop(false); }
   render();
+  if (S.pendienteFin || S.pendienteInicio) reconciliar();   // reintentar lo que quedó a medias
 })();
 })();
