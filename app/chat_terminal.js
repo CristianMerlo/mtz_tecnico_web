@@ -17,6 +17,15 @@ function colorFor(n){
   for (const t in COLORES_TECS) if (k.startsWith(t)) return COLORES_TECS[t];
   let h = 0; for (const c of k) h = (h*31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length];
 }
+// Los avisos automaticos del Supervisor (fichajes, reportes procesados) llenan el
+// grupo y tapan lo escrito por personas: se ATENUA, nunca se oculta (decision de
+// Cristian 20/10: la informacion sigue visible, lo humano destaca).
+const AVISO_RE = /^(\[Avisos\]|\s*)(📢|✅|⚠️|🔔|🤖|ℹ️)/;
+function esAviso(m){
+  const n = String(m.sender_name||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if (n.startsWith('SUPERVISOR') || n.startsWith('BOT')) return true;
+  return AVISO_RE.test(String(m.text||'').trim());
+}
 
 // contenedor: entre el cuerpo de la app y el footer
 const box = document.createElement('div');
@@ -65,9 +74,11 @@ window.addEventListener('storage', (e) => { if (e.key === 'mtz_sesion') { ultimo
 
 function linea(m){
   const d = document.createElement('div');
+  const aviso = esAviso(m);
   const hhmm = m.ts ? m.ts.slice(11, 16) : '--:--';
   const who = document.createElement('span');
-  who.style.color = colorFor(m.sender_name); who.style.fontWeight = '700';
+  who.style.color = aviso ? '#6b7280' : colorFor(m.sender_name);
+  who.style.fontWeight = aviso ? '400' : '700';
   who.textContent = (m.sender_name || '?').toUpperCase().slice(0, 10).padEnd(10, ' ');
   const ts = document.createElement('span');
   ts.style.color = '#5b6068'; ts.textContent = hhmm + ' · ';
@@ -75,6 +86,7 @@ function linea(m){
   if (m.text) { tx.textContent = m.text.replace(/\s+/g, ' ').slice(0, 200); }
   else { tx.style.color = '#5b6068'; tx.style.fontStyle = 'italic'; tx.textContent = '📎 adjunto (ver en Telegram)'; }
   d.append(ts, who, tx);
+  if (aviso) { d.style.opacity = '0.5'; if (tx.style.color !== '#5b6068') tx.style.color = '#9ca3af'; }
   log.appendChild(d);
   while (log.children.length > MAX_LINES) log.removeChild(log.firstChild);
   log.scrollTop = log.scrollHeight;
