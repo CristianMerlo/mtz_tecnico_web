@@ -7,6 +7,7 @@
 (() => {
 'use strict';
 const $ = (s) => document.querySelector(s);
+const APP_VERSION = '2026-10-26.1';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 let SERVER = location.origin;   // fallback: app servida desde el propio tunel
@@ -105,7 +106,7 @@ function ubicacion() {
   });
 }
 
-const PROTEGIDAS = ['/p', '/ping', '/inicio', '/fin', '/viaje', '/soporte', '/coordinacion', '/admin', '/reporte', '/enviar'];
+const PROTEGIDAS = ['/p', '/ping', '/inicio', '/fin', '/jornada', '/viaje', '/soporte', '/coordinacion', '/admin', '/reporte', '/enviar'];
 // fetch con timeout: en conexiones malas (3G) un fetch sin límite se cuelga para siempre
 async function fetchT(url, opts, ms = 12000) {
   const c = new AbortController();
@@ -120,13 +121,21 @@ async function api(path, opts) {
   }
   try {
     const r = await fetchT(SERVER + path, opts || { cache: 'no-store' });
-    const t = (await r.text()).slice(0, 120);
+    const raw = await r.text();
+    const t = raw.slice(0, 120);
     if (r.status === 401 && /sesi/.test(t) && SES && !SES.prueba) {
       cerrarSesion();                      // brazalete vencido: vuelve al login solito
       toast('🔒 Se venció tu sesión — poné tu código de nuevo', 5000);
     }
-    return { ok: r.ok, status: r.status, text: t };
-  } catch (e) { return { ok: false, status: 0, text: 'sin conexión' }; }
+    return { ok: r.ok, status: r.status, text: t, raw };
+  } catch (e) { return { ok: false, status: 0, text: 'sin conexión', raw: '' }; }
+}
+
+async function apiJson(path, opts) {
+  const r = await api(path, opts);
+  let data = null;
+  try { data = JSON.parse(r.raw || ''); } catch (e) {}
+  return { ...r, data };
 }
 
 // ---------- ping ----------
@@ -217,6 +226,11 @@ async function cerrar() {
   // el grupo/BD nunca recibieron el cierre (caso Ana). Seguimos "en turno" y reintentamos.
   if (!r.ok) {
     S.pendienteFin = true; save(); render();
+    // Si el server dice "no hay jornada abierta", puede ser que ya la haya
+    // cerrado y se perdió la respuesta. Consultamos su estado antes de dejar
+    // al técnico con un "cierre pendiente" eterno.
+    await sincronizarJornada();
+    if (!S.pendienteFin) return;
     toast('⚠️ No se pudo cerrar: dejá la app abierta, se cierra sola al volver la red', 7000);
     return;
   }
@@ -246,6 +260,56 @@ async function reconciliar() {
       toast('✅ Jornada iniciada al recuperar la conexión', 5000);
     }
   }
+}
+
+// El servidor es la autoridad de la jornada. Al abrir/recuperar red preguntamos
+// su estado real para no quedar con una jornada local fantasma ni perder un
+// cierre que el server ya registró (caso típico: se perdió la respuesta de /fin).
+let sincronizandoJornada = false;
+async function sincronizarJornada() {
+  if (!TC || !SES || SES.offline || sincronizandoJornada) return;
+  sincronizandoJornada = true;
+  try {
+    const r = await apiJson(`/jornada?tc=${encodeURIComponent(TC)}`);
+    if (!r.ok || !r.data || r.data.ok !== true) return;
+    const d = r.data;
+    if (d.abierta) {
+      const estabaActivo = S.activo;
+      Object.assign(S, {
+        activo: true, inicio: d.inicio || S.inicio, fin: null,
+        pendienteInicio: false, dueno: S.dueno || TC,
+      });
+      save();
+      if (!estabaActivo) {
+        render();
+        pingLoop(false);
+        toast('🟢 Recuperé tu jornada abierta del servidor', 5000);
+      } else {
+        render();
+      }
+      return;
+    }
+    if (d.existe && d.fin) {
+      const estabaActivo = S.activo || S.pendienteFin;
+      clearInterval(timer);
+      Object.assign(S, { activo: false, fin: d.fin, viaje: null, pendienteFin: false, pendienteInicio: false });
+      save(); render();
+      if (estabaActivo) {
+        toast('✅ El servidor ya tenía la jornada cerrada', 5000);
+        $('#ovRep').classList.add('on');
+      }
+      return;
+    }
+    // Sin jornada en el servidor: no dejamos una jornada local fantasma.
+    if (S.activo) {
+      clearInterval(timer);
+      Object.assign(S, { activo: false, fin: null, viaje: null, pendienteFin: false, pendienteInicio: false });
+      save(); render();
+      toast('⚠️ El servidor no registra tu jornada; volvé a iniciarla', 6500);
+    } else if (S.pendienteFin) {
+      S.pendienteFin = false; save(); render();
+    }
+  } finally { sincronizandoJornada = false; }
 }
 
 async function enviarReporte() {
@@ -529,6 +593,7 @@ function renderLogin() {
     if (!r.ok) { $('#lgMsg').textContent = 'Error: ' + safeErr(JSON.stringify(d)); return; }
     try { localStorage.setItem(_cacheClaveKey(t.codigo), await _hashClave(cod, t.codigo)); } catch(e){}
     abrirSesion(Object.assign({}, t, { tk: d.tk, vence: d.vence, cod: d.cod })); render();
+    sincronizarJornada();
     toast(`👋 Hola ${t.nombre.split(' ')[0]}, listo para trabajar`);
   };
   $('#lgTest').onclick = (e) => { e.preventDefault(); $('#lgTestBox').style.display = ''; };
@@ -536,7 +601,7 @@ function renderLogin() {
     const c = ($('#lgTestTc').value || '').trim().toUpperCase();
     if (!c) { $('#lgTestTc').focus(); return; }
     abrirSesion({ codigo: c, nombre: c + ' (prueba)', prueba: true });
-    render();
+    render(); sincronizarJornada();
   };
   if (!sugerido && TECNICOS.length) $('#lgCod').focus();
 }
@@ -624,7 +689,7 @@ function refrescoChipRed() {
   if (navigator.onLine) c.className = 'chip', c.innerHTML = '<i class="fa-solid fa-wifi"></i> en línea';
   else c.className = 'chip off', c.innerHTML = '<i class="fa-solid fa-plane-slash"></i> sin red';
 }
-window.addEventListener('online', () => { refrescoChipRed(); reconciliar(); });
+window.addEventListener('online', () => { refrescoChipRed(); reconciliar(); sincronizarJornada(); });
 window.addEventListener('offline', refrescoChipRed);
 refrescoChipRed();
 
@@ -632,6 +697,7 @@ $('#cfgBtn').onclick = () => {
   estadoInstalacion();
   $('#cfgQuien').textContent = SES ? (SES.nombre || SES.codigo) + (SES.prueba ? ' (prueba)' : '') : 'sin sesión';
   $('#cfgServer').textContent = SERVER;
+  $('#cfgVersion').textContent = APP_VERSION;
   $('#ovCfg').classList.add('on');
 };
 $('#cfgLogout').onclick = cerrarSesion;
@@ -684,6 +750,7 @@ if (TC) $('#salirBtn').style.display = '';
   // si quedó una jornada abierta de antes, retomar el ciclo de pings
   if (S.activo && TC) { S.dueno = S.dueno || TC; pingLoop(false); }
   render();
-  if (S.pendienteFin || S.pendienteInicio) reconciliar();   // reintentar lo que quedó a medias
+  if (S.pendienteFin || S.pendienteInicio) await reconciliar();   // reintentar lo que quedó a medias
+  await sincronizarJornada();                                       // estado autoritativo del server
 })();
 })();
